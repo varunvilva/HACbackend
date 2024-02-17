@@ -113,4 +113,4 @@ if __name__ == '__main__':
     for m in genai.list_models():
         if 'generateContent' in m.supported_generation_methods:
             print(m.name)
-    app.run(debug=True)
+    app.run(debug=True, port=3000)
