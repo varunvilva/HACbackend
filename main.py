@@ -13,11 +13,13 @@ import textwrap
 import glob,io
 from PIL import Image
 import json
+from flask_cors import CORS
+from bhashini import lang_model 
 
 load_dotenv()
 
 app = Flask(__name__)
-
+CORS(app)
 def to_markdown(text):
   text = text.replace('•', '  *')
   return Markdown(textwrap.indent(text, '> ', predicate=lambda _: True))
@@ -59,8 +61,13 @@ async def get_text(query, bool=True):
 
 
 # @app.route("/audio",methods=['POST'])
-async def get_audio(audio):
-    bhashini_input = {"modelId":"64117455b1463435d2fbaec4","task":"asr", "audioContent":audio, "source":"hi", "userId":None}
+async def get_audio(audio, lang_code="en"):
+    modelId,source=None,lang_code
+    for x in lang_model:
+        if x["lang_code"] == lang_code:
+            model_id = x["model_id"]
+
+    bhashini_input = {"modelId":modelId,"task":"asr", "audioContent":audio, "source":source, "userId":None}
     bhashini_api = "https://meity-auth.ulcacontrib.org/ulca/apis/asr/v1/model/compute"
     # response =  requests.post(bhashini_api, json=bhashini_input)
     # if response.status_code == 200:
@@ -121,6 +128,7 @@ async def get_image(image):
 async def get_result():
     text = request.form.get('text')
     img = request.files.get('image')
+    lang = request.form.get('lang')
     if img is not None:
         img = img.read()
     else:
@@ -139,21 +147,25 @@ async def get_result():
     print(type(img))
     print(request.files.get("image"))
     audio = request.form.get('audio')
-
+    # print("Audio")
+    # print(audio)
+    if audio:
+        audio = audio.split("base64,")[1]
+        # print(audio)
     
     # loop = asyncio.get_event_loop()
     # img = await loop.run_in_executor(None, Image.open, io.BytesIO(image.read()))
     # img = Image.open(img)
     if text!=None and img!=None and audio!=None:
-        await asyncio.gather(get_audio(audio), get_text(text),get_image(img))#, get_audio(audio), get_text(text))
+        await asyncio.gather(get_audio(audio,lang), get_text(text),get_image(img))#, get_audio(audio), get_text(text))
     elif text is None and img is not None and audio is not None:
-        await asyncio.gather(get_audio(audio),get_image(img))
+        await asyncio.gather(get_audio(audio,lang),get_image(img))
     elif text is not None and img is None and audio is not None:
-        await asyncio.gather(get_audio(audio), get_text(text))
+        await asyncio.gather(get_audio(audio,lang), get_text(text))
     elif text is not None and img is not None and audio is None:    
         await asyncio.gather(get_text(text),get_image(img))
     elif text is None and img is None and audio is not None:
-        await asyncio.gather(get_audio(audio))
+        await asyncio.gather(get_audio(audio,lang))
     elif text is None and img is not None and audio is None:
         await asyncio.gather(get_image(img))
     elif text is not None and img is None and audio is None:
@@ -165,7 +177,7 @@ async def get_result():
         # Handle the case where all three are None
         pass
     
-    if text is None and text in dick.keys():
+    if text is None or text not in dick.keys():
         dick["text"]={
             "product_name": None,
             "description": None,
@@ -178,7 +190,7 @@ async def get_result():
             "manufacturing_date": None,
             "expiration_date": None
         }
-    if audio is None and audio in dick.keys():
+    if audio is None or audio not in dick.keys():
         dick["audio"]={
             "product_name": None,
             "description": None,
@@ -218,7 +230,5 @@ async def get_result():
     return final_json, 200
 
 
-
-
 if __name__ == '__main__':
-    app.run(debug=True, port=3000)
+    app.run(debug=True, port=5000)
